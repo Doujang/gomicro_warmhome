@@ -1,0 +1,18 @@
+.btn-theme, .btn-theme:hover {
+    background-color: #33CCFF;
+    border-color: #33CCFF;
+    color: #fff;
+}
+
+.index_img {
+    width: 100px;
+    height: 100px;
+}
+
+.footer {
+    width: 100%;
+    text-align: center;
+    font-size: 15px;
+    color: #99999c;
+    padding: 14px 0px;
+}
