@@ -29,6 +29,12 @@ func main() {
 	rou.NotFound = http.FileServer(http.Dir("html"))
 	//获取地区数据
 	rou.GET("/api/v1.0/areas", handler.GetArea)
+	//获取图片验证码
+	rou.GET("/api/v1.0/imagecode/:uuid", handler.GetImageCd)
+	//获取邮箱验证码
+	rou.GET("/api/v1.0/emailcode/:email", handler.GetEmailCd)
+	//注册
+	rou.POST("/api/v1.0/users", handler.PostReg)
 	//获取session
 	rou.GET("/api/v1.0/session", handler.GetSession)
 	//获取首页轮播图

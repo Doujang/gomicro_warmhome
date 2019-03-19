@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package go.micro.srv.PostReg;
+
+service Example {
+    rpc PostReg (Request) returns (Response) {
+    }
+    rpc Stream (StreamingRequest) returns (stream StreamingResponse) {
+    }
+    rpc PingPong (stream Ping) returns (stream Pong) {
+    }
+}
+
+message Message {
+    string say = 1;
+}
+
+message Request {
+    //邮箱号
+    string Email = 1;
+    //密码
+    string password = 2;
+    //邮箱验证码
+    string Email_code = 3;
+}
+
+message Response {
+    string Errno = 1;
+    string Errmsg = 2;
+    string SessionID = 3;
+}
+
+message StreamingRequest {
+    int64 count = 1;
+}
+
+message StreamingResponse {
+    int64 count = 1;
+}
+
+message Ping {
+    int64 stroke = 1;
+}
+
+message Pong {
+    int64 stroke = 1;
+}

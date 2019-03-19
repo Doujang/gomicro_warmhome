@@ -3,16 +3,24 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"github.com/afocus/captcha"
 	"github.com/astaxie/beego"
 	"github.com/julienschmidt/httprouter"
 	"github.com/micro/go-grpc"
 	"github.com/micro/go-micro/client"
 	"gomicro_warmhome/homeweb/models"
+	"gomicro_warmhome/homeweb/utils"
+	"image"
+	"image/png"
 	"net/http"
+	"reflect"
 	"time"
 
 	example "github.com/micro/examples/template/srv/proto/example"
 	GETAREA "gomicro_warmhome/GetArea/proto/example"
+	GETEMAILCD "gomicro_warmhome/GetEmailcd/proto/example"
+	GETIMAGECD "gomicro_warmhome/GetImageCd/proto/example"
+	POSTREG "gomicro_warmhome/PostReg/proto/example"
 )
 
 func ExampleCall(w http.ResponseWriter, r *http.Request) {
@@ -88,21 +96,126 @@ func GetArea(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+}
+
+func GetImageCd(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	beego.Info("获取验证码图片请求客户端 url:api/v1.0/imagecode/:uuid")
+
+	//创建服务
+	server := grpc.NewService()
+	//服务初始化
+	server.Init()
+
+	//获取前端传送过来的uuid
+	exampleClient := GETIMAGECD.NewExampleService("go.micro.srv.GetImageCd", server.Client())
+	rsp, err := exampleClient.GetImageCd(context.TODO(), &GETIMAGECD.Request{
+		Uuid: ps.ByName("uuid"),
+	})
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	//处理从服务端传送过来的图片信息
+	var img image.RGBA
+	img.Stride = int(rsp.Stride)
+	img.Rect.Min.X = int(rsp.Min.X)
+	img.Rect.Min.Y = int(rsp.Min.Y)
+	img.Rect.Max.X = int(rsp.Max.X)
+	img.Rect.Max.Y = int(rsp.Max.Y)
+	img.Pix = []uint8(rsp.Pix)
+
+	var image captcha.Image
+	image.RGBA = &img
+
+	//将图片发送给前端
+	png.Encode(w, image)
 
 }
 
-func GetSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	// decode the incoming request as json
+func GetEmailCd(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	beego.Info("获取邮箱验证码请求客户端 url:api/v1.0/emailcode/:email")
+	//创建服务并初始化
+	server := grpc.NewService()
+	server.Init()
+
+	//获取前端发送过来的邮箱号
+	email := ps.ByName("email")
+	beego.Info(email)
+
+	beego.Info(r.URL.Query())
+	//获取url携带的图片验证码和uuid
+	text := r.URL.Query()["text"][0]
+	id := r.URL.Query()["id"][0]
+
+	//调用服务
+	exampleClient := GETEMAILCD.NewExampleService("go.micro.srv.GetEmailcd", server.Client())
+	rsp, err := exampleClient.GetEmailCd(context.TODO(), &GETEMAILCD.Request{
+		Email: email,
+		Uuid:  id,
+		Text:  text,
+	})
+
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	// we want to augment the response
+	response := map[string]interface{}{
+		"errno":  rsp.Errno,
+		"errmsg": rsp.Errmsg,
+	}
+
+	//设置返回格式
+	w.Header().Set("Content-Type", "application/json")
+
+	// encode and write the response as json
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+}
+
+func PostReg(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	beego.Info("注册请求  /api/v1.0/users")
+
+	//解析前端发送过来的json数据
 	var request map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
 
+	for key, value := range request {
+		beego.Info(key, value, reflect.TypeOf(value))
+	}
+
+	if request["email"] == "" || request["password"] == "" || request["email_code"] == "" {
+		resp := map[string]interface{}{
+			"errno":  utils.RECODE_NODATA,
+			"errmsg": "信息有误请重新输入",
+		}
+		w.Header().Set("Content-type", "application/json")
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			http.Error(w, err.Error(), 503)
+			beego.Info(err)
+			return
+		}
+		beego.Info("有数据为空")
+		return
+	}
+
+	//创建服务并初始化
+	server := grpc.NewService()
+	server.Init()
+
 	// call the backend service
-	exampleClient := example.NewExampleService("go.micro.srv.template", client.DefaultClient)
-	rsp, err := exampleClient.Call(context.TODO(), &example.Request{
-		Name: request["name"].(string),
+	exampleClient := POSTREG.NewExampleService("go.micro.srv.PostReg", server.Client())
+	rsp, err := exampleClient.PostReg(context.TODO(), &POSTREG.Request{
+		Email:     request["email"].(string),
+		Password:  request["password"].(string),
+		EmailCode: request["email_code"].(string),
 	})
 	if err != nil {
 		http.Error(w, err.Error(), 500)
@@ -111,8 +224,16 @@ func GetSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 
 	// we want to augment the response
 	response := map[string]interface{}{
-		"msg": rsp.Msg,
-		"ref": time.Now().UnixNano(),
+		"errno":  rsp.Errno,
+		"errmsg": rsp.Errmsg,
+	}
+
+	//读取cookie
+	cookie, err := r.Cookie("userlogin")
+	//如果读取失败或者cookie中的value不存在则创建cookie
+	if err != nil || "" == cookie.Value {
+		cookie := http.Cookie{Name: "userlogin", Value: rsp.SessionID, Path: "/", MaxAge: 600}
+		http.SetCookie(w, &cookie)
 	}
 
 	// encode and write the response as json
@@ -122,29 +243,32 @@ func GetSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	}
 }
 
-func GetIndex(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	// decode the incoming request as json
-	var request map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
+func GetSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	beego.Info("获取Session url：api/v1.0/session")
 
-	// call the backend service
-	exampleClient := example.NewExampleService("go.micro.srv.template", client.DefaultClient)
-	rsp, err := exampleClient.Call(context.TODO(), &example.Request{
-		Name: request["name"].(string),
-	})
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-
-	// we want to augment the response
+	//创建返回数据map
 	response := map[string]interface{}{
-		"msg": rsp.Msg,
-		"ref": time.Now().UnixNano(),
+		"errno":  utils.RECODE_SESSIONERR,
+		"errmsg": utils.RecodeText(utils.RECODE_SESSIONERR),
 	}
+	w.Header().Set("Content-Type", "application/json")
+
+	// encode and write the response as json
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+}
+
+func GetIndex(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	beego.Info("获取首页轮播 url：api/v1.0/houses/index")
+
+	//创建返回数据map
+	response := map[string]interface{}{
+		"errno":  utils.RECODE_OK,
+		"errmsg": utils.RecodeText(utils.RECODE_OK),
+	}
+	w.Header().Set("Content-Type", "application/json")
 
 	// encode and write the response as json
 	if err := json.NewEncoder(w).Encode(response); err != nil {
