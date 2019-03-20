@@ -211,7 +211,7 @@ func init() {
 
 	// set default database
 	//连接数据   ( 默认参数 ，mysql数据库 ，"数据库的用户名 ：数据库密码@tcp("+数据库地址+":"+数据库端口+")/库名？格式",默认参数）
-	orm.RegisterDataBase("default", "mysql", "root:root@tcp("+utils.G_mysql_addr+":"+utils.G_mysql_port+")/warmhome?charset=utf8", 30)
+	orm.RegisterDataBase("default", "mysql", "root:"+utils.G_mysql_passwd+"@tcp("+utils.G_mysql_addr+":"+utils.G_mysql_port+")/"+utils.G_mysql_dbname+"?charset=utf8", 30)
 
 	//注册model 建表
 	orm.RegisterModel(new(User), new(House), new(Area), new(Facility), new(HouseImage), new(OrderHouse))

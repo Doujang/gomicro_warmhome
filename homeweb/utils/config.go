@@ -17,7 +17,10 @@ var (
 	G_mysql_addr   string //mysql ip 地址
 	G_mysql_port   string //mysql 端口
 	G_mysql_dbname string //mysql db name
+	G_mysql_passwd string //mysql db password
 	G_img_addr     string //图片服务器地址
+	G_email_user   string //邮箱账号
+	G_email_passwd string //邮箱密码
 )
 
 func InitConfig() {
@@ -38,7 +41,10 @@ func InitConfig() {
 	G_mysql_addr = appconf.String("mysqladdr")
 	G_mysql_port = appconf.String("mysqlport")
 	G_mysql_dbname = appconf.String("mysqldbname")
+	G_mysql_passwd = appconf.String("mysqlpasswd")
 	G_img_addr = appconf.String("imgaddr")
+	G_email_user = appconf.String("email_account")
+	G_email_passwd = appconf.String("email_passwd")
 	return
 }
 

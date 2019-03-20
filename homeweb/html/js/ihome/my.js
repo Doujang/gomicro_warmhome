@@ -29,7 +29,7 @@ $(document).ready(function () {
         // 查询到了用户的信息
         else if ("0" == resp.errno) {
             $("#user-name").html(resp.data.name);
-            $("#user-mobile").html(resp.data.mobile);
+            $("#user-email").html(resp.data.email);
             if (resp.data.avatar_url) {
                 $("#user-avatar").attr("src", resp.data.avatar_url);
             }

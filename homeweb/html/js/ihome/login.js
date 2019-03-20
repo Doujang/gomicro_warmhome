@@ -14,8 +14,10 @@ $(document).ready(function () {
         // 阻止浏览器对于表单的默认提交行为
         e.preventDefault();
         var email = $("#email").val();
+        var emailPat = /^(.+)@(.+)$/;
+        var matchArray = email.match(emailPat);
         var passwd = $("#password").val();
-        if (!email) {
+        if (!email || matchArray == null) {
             $("#email-err span").html("请填写正确的邮箱！");
             $("#email-err").show();
             return;

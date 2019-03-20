@@ -37,6 +37,7 @@ function sendEmailCode() {
         $("#email-err span").html("请填写正确的邮箱！");
         $("#email-err").show();
         $(".emailcode-a").attr("onclick", "sendEmailCode();");
+        $(".emailcode").refresh();
         return;
     }
     var imageCode = $("#imagecode").val();
@@ -44,6 +45,7 @@ function sendEmailCode() {
         $("#image-code-err span").html("请填写验证码！");
         $("#image-code-err").show();
         $(".emailcode-a").attr("onclick", "sendEmailCode();");
+        $(".emailcode").refresh();
         return;
     }
 
@@ -63,23 +65,24 @@ function sendEmailCode() {
                     // 如果计时器到最后, 清除计时器对象
                     clearInterval(t);
                     // 将点击获取验证码的按钮展示的文本回复成原始文本
-                    $(".phonecode-a").html("获取验证码");
+                    $(".emailcode-a").html("获取验证码");
                     // 将点击按钮的onclick事件函数恢复回去
-                    $(".phonecode-a").attr("onclick", "sendEmailCode();");
+                    $(".emailcode-a").attr("onclick", "sendEmailCode();");
                 } else {
                     num -= 1;
                     // 展示倒计时信息
-                    $(".phonecode-a").html(num + "秒");
+                    $(".emailcode-a").html(num + "秒");
                 }
             }, 1000, 60)
+            $(".emailcode").refresh();
         } else {
             // 表示后端出现了错误，可以将错误信息展示到前端页面中
             $("#email-code-err span").html(resp.errmsg);
             $("#email-code-err").show();
             // 将点击按钮的onclick事件函数恢复回去
-            $(".phonecode-a").attr("onclick", "sendEmailCode();");
+            $(".emailcode-a").attr("onclick", "sendEmailCode();");
+            $(".emailcode").refresh();
         }
-
     }, "json");
 
 }

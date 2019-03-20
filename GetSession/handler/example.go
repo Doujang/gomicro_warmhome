@@ -2,81 +2,49 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/astaxie/beego"
-	"github.com/astaxie/beego/orm"
 	"github.com/garyburd/redigo/redis"
 	"gomicro_warmhome/homeweb/models"
 	"gomicro_warmhome/homeweb/utils"
-	"math/rand"
-	"strconv"
-	"time"
 
 	"github.com/micro/go-log"
 
-	example "gomicro_warmhome/GetEmailcd/proto/example"
+	example "gomicro_warmhome/GetSession/proto/example"
 )
 
 type Example struct{}
 
 // Call is a single request handler called via client.Call or the generated client code
-func (e *Example) GetEmailCd(ctx context.Context, req *example.Request, rsp *example.Response) error {
-	beego.Info("获取邮箱验证码请求客户端 url:api/v1.0/emailcode/:email")
+func (e *Example) GetSession(ctx context.Context, req *example.Request, rsp *example.Response) error {
+	beego.Info("获取Session url：api/v1.0/session")
+
 	//初始化返回值
 	rsp.Errno = utils.RECODE_OK
 	rsp.Errmsg = utils.RecodeText(rsp.Errno)
-	//验证邮箱是否存在
-	o := orm.NewOrm()
-	user := models.User{Email: req.Email}
-	err := o.Read(&user, "email")
-	if err == nil {
-		beego.Info("用户已经存在")
-		rsp.Errno = utils.RECODE_DBERR
-		rsp.Errmsg = utils.RecodeText(rsp.Errmsg)
-		return nil
-	}
-	//连接redis
+	//连接缓存
 	bm, err := utils.GetRedisConnector()
 	if err != nil {
-		beego.Info("缓存创建失败", err)
+		beego.Info("获取缓存连接失败")
 		rsp.Errno = utils.RECODE_DBERR
 		rsp.Errmsg = utils.RecodeText(rsp.Errno)
 		return nil
 	}
-
-	value := bm.Get(req.Uuid)
-	if value == nil {
-		beego.Info("缓存查询失败", value)
-		rsp.Errno = utils.RECODE_DBERR
-		rsp.Errmsg = utils.RecodeText(rsp.Errno)
-		return nil
-	}
-	value_str, _ := redis.String(value, nil)
-	//校验验证码
-	if req.Text != value_str {
-		beego.Info("图片验证码错误")
-		rsp.Errno = utils.RECODE_SMSERR
-		rsp.Errmsg = utils.RecodeText(rsp.Errno)
-		return nil
-	}
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	code_number := r.Intn(9999) + 1001
-	beego.Info(code_number)
-	code := strconv.Itoa(code_number)
-	//发送邮箱验证码
-	err = utils.SendEmail(req.Email, code)
+	//从缓存中拿到用户信息
+	beego.Info(req.SessionId)
+	userInfo_redis := bm.Get(req.SessionId)
+	userInfo_string, _ := redis.String(userInfo_redis, nil)
+	beego.Info(userInfo_string)
+	userInfo := []byte(userInfo_string)
+	user := models.User{}
+	err = json.Unmarshal(userInfo, &user)
 	if err != nil {
-		beego.Info("邮件发送失败")
-		rsp.Errno = utils.RECODE_SERVERERR
+		beego.Info("Json解析异常")
+		rsp.Errno = utils.RECODE_DATAERR
 		rsp.Errmsg = utils.RecodeText(rsp.Errno)
 		return nil
 	}
-	err = bm.Put(req.Email, code, time.Second*300)
-	if err != nil {
-		beego.Info("缓存异常")
-		rsp.Errno = utils.RECODE_DBERR
-		rsp.Errmsg = utils.RecodeText(rsp.Errno)
-		return nil
-	}
+	rsp.Data = user.Name
 
 	return nil
 }

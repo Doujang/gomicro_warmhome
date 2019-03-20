@@ -17,9 +17,13 @@ import (
 	"time"
 
 	example "github.com/micro/examples/template/srv/proto/example"
+	DELETESESSION "gomicro_warmhome/DeleteSession/proto/example"
 	GETAREA "gomicro_warmhome/GetArea/proto/example"
 	GETEMAILCD "gomicro_warmhome/GetEmailcd/proto/example"
 	GETIMAGECD "gomicro_warmhome/GetImageCd/proto/example"
+	GETSESSION "gomicro_warmhome/GetSession/proto/example"
+	GETUSERINFO "gomicro_warmhome/GetUserInfo/proto/example"
+	POSTLOGIN "gomicro_warmhome/PostLogin/proto/example"
 	POSTREG "gomicro_warmhome/PostReg/proto/example"
 )
 
@@ -246,10 +250,45 @@ func PostReg(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 func GetSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	beego.Info("获取Session url：api/v1.0/session")
 
+	//创建服务并初始化
+	server := grpc.NewService()
+	server.Init()
+
+	// call the backend service
+	exampleClient := GETSESSION.NewExampleService("go.micro.srv.GetSession", server.Client())
+
+	//获取cookie
+	userlogin, err := r.Cookie("userlogin")
+	//未登录或登录超时
+	if err != nil || "" == userlogin.Value {
+		response := map[string]interface{}{
+			"errno":  utils.RECODE_SESSIONERR,
+			"errmsg": utils.RecodeText(utils.RECODE_SESSIONERR),
+		}
+		w.Header().Set("Content-Type", "application/json")
+		// encode and write the response as json
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		return
+	}
+	//如果cookie有值就发送到服务端
+	rsp, err := exampleClient.GetSession(context.TODO(), &GETSESSION.Request{
+		SessionId: userlogin.Value,
+	})
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	data := make(map[string]string)
+	data["name"] = rsp.Data
 	//创建返回数据map
 	response := map[string]interface{}{
-		"errno":  utils.RECODE_SESSIONERR,
-		"errmsg": utils.RecodeText(utils.RECODE_SESSIONERR),
+		"errno":  rsp.Errno,
+		"errmsg": rsp.Errmsg,
+		"data":   data,
 	}
 	w.Header().Set("Content-Type", "application/json")
 
@@ -258,6 +297,193 @@ func GetSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+}
+
+func PostLogin(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	beego.Info("登录请求  /api/v1.0/sessions")
+
+	//解析前端发送过来的json数据
+	var request map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	for key, value := range request {
+		beego.Info(key, value, reflect.TypeOf(value))
+	}
+
+	if request["email"] == "" || request["password"] == "" {
+		resp := map[string]interface{}{
+			"errno":  utils.RECODE_NODATA,
+			"errmsg": "信息有误请重新输入",
+		}
+		w.Header().Set("Content-type", "application/json")
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			http.Error(w, err.Error(), 503)
+			beego.Info(err)
+			return
+		}
+		beego.Info("有数据为空")
+		return
+	}
+
+	//创建服务并初始化
+	server := grpc.NewService()
+	server.Init()
+
+	// call the backend service
+	exampleClient := POSTLOGIN.NewExampleService("go.micro.srv.PostLogin", server.Client())
+	rsp, err := exampleClient.PostLogin(context.TODO(), &POSTLOGIN.Request{
+		Email:    request["email"].(string),
+		Password: request["password"].(string),
+	})
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	//读取cookie
+	cookie, err := r.Cookie("userlogin")
+	//如果读取失败或者cookie中的value不存在则创建cookie
+	if err != nil || "" == cookie.Value {
+		cookie := http.Cookie{Name: "userlogin", Value: rsp.SessionId, Path: "/", MaxAge: 600}
+		http.SetCookie(w, &cookie)
+	}
+
+	// we want to augment the response
+	response := map[string]interface{}{
+		"errno":  rsp.Errno,
+		"errmsg": rsp.Errmsg,
+	}
+	w.Header().Set("Content-type", "application/json")
+
+	// encode and write the response as json
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+}
+
+func DeleteSession(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	beego.Info("登出请求  /api/v1.0/session")
+
+	//创建服务并初始化
+	server := grpc.NewService()
+	server.Init()
+
+	// call the backend service
+	exampleClient := DELETESESSION.NewExampleService("go.micro.srv.DeleteSession", server.Client())
+	//获取cookie
+	userlogin, err := r.Cookie("userlogin")
+	//Cookie为空
+	if err != nil {
+		resp := map[string]interface{}{
+			"errno":  utils.RECODE_SESSIONERR,
+			"errmsg": utils.RecodeText(utils.RECODE_SESSIONERR),
+		}
+		w.Header().Set("Content-Type", "application/json")
+		// encode and write the response as json
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			http.Error(w, err.Error(), 503)
+			beego.Info(err)
+			return
+		}
+		return
+	}
+
+	rsp, err := exampleClient.DeleteSession(context.TODO(), &DELETESESSION.Request{
+		SessionId: userlogin.Value,
+	})
+
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	//读取cookie
+	cookie, err := r.Cookie("userlogin")
+	//如果读取失败或者cookie中的value不存在则创建cookie
+	if err != nil || "" == cookie.Value {
+		return
+	} else {
+		cookie := http.Cookie{Name: "userlogin", Path: "/", MaxAge: 600}
+		http.SetCookie(w, &cookie)
+	}
+
+	// we want to augment the response
+	response := map[string]interface{}{
+		"errno":  rsp.Errno,
+		"errmsg": rsp.Errmsg,
+	}
+	w.Header().Set("Content-type", "application/json")
+
+	// encode and write the response as json
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+}
+
+func GetUserInfo(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	beego.Info("获取用户信息 url：api/v1.0/user")
+
+	//初始化服务
+	server := grpc.NewService()
+	server.Init()
+
+	// call the backend service
+	exampleClient := GETUSERINFO.NewExampleService("go.micro.srv.GetUserInfo", server.Client())
+
+	userlogin, err := r.Cookie("userlogin")
+	if err != nil {
+		resp := map[string]interface{}{
+			"errno":  utils.RECODE_SESSIONERR,
+			"errmsg": utils.RecodeText(utils.RECODE_SESSIONERR),
+		}
+		w.Header().Set("Content-Type", "application/json")
+		// encode and write the response as json
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			http.Error(w, err.Error(), 503)
+			beego.Info(err)
+			return
+		}
+		return
+	}
+	//成功就将信息发送给前端
+	rsp, err := exampleClient.GetUserInfo(context.TODO(), &GETUSERINFO.Request{
+		SessionId: userlogin.Value,
+	})
+
+	if err != nil {
+		http.Error(w, err.Error(), 502)
+		return
+	}
+	//准备数据
+	data := make(map[string]interface{})
+	//将信息发送给前端
+	data["user_id"] = rsp.UserId
+	data["name"] = rsp.Name
+	data["email"] = rsp.Email
+	data["real_name"] = rsp.RealName
+	data["id_card"] = rsp.IdCard
+	data["avatar_url"] = utils.AddDomain2Url(rsp.AvatarUrl)
+	resp := map[string]interface{}{
+		"errno":  rsp.Errno,
+		"errmsg": rsp.Errmsg,
+		"data":   data,
+	}
+	//设置格式
+	w.Header().Set("Content-Type", "application/json")
+	// encode and write the response as json
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		http.Error(w, err.Error(), 503)
+		beego.Info(err)
+		return
+	}
+	return
 }
 
 func GetIndex(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
