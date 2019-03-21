@@ -45,7 +45,14 @@ func main() {
 	rou.GET("/api/v1.0/user", handler.GetUserInfo)
 	//获取首页轮播图
 	rou.GET("/api/v1.0/house/index", handler.GetIndex)
-
+	//上传用户头像
+	rou.POST("/api/v1.0/user/avatar", handler.PostAvatar)
+	//修改用户名
+	rou.PUT("/api/v1.0/user/name", handler.PutUserInfo)
+	//查看用户是否实名认证
+	rou.GET("/api/v1.0/user/auth", handler.GetUserInfo)
+	//进行实名认证
+	rou.POST("/api/v1.0/user/auth", handler.PostUserAuth)
 	//路由初始化
 	service.Handle("/", rou)
 

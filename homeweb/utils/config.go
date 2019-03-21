@@ -19,6 +19,7 @@ var (
 	G_mysql_dbname string //mysql db name
 	G_mysql_passwd string //mysql db password
 	G_img_addr     string //图片服务器地址
+	G_ssh_addr     string //ssh远程服务器地址
 	G_email_user   string //邮箱账号
 	G_email_passwd string //邮箱密码
 )
@@ -45,6 +46,7 @@ func InitConfig() {
 	G_img_addr = appconf.String("imgaddr")
 	G_email_user = appconf.String("email_account")
 	G_email_passwd = appconf.String("email_passwd")
+	G_ssh_addr = appconf.String("sshaddr")
 	return
 }
 

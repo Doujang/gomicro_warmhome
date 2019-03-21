@@ -23,8 +23,11 @@ import (
 	GETIMAGECD "gomicro_warmhome/GetImageCd/proto/example"
 	GETSESSION "gomicro_warmhome/GetSession/proto/example"
 	GETUSERINFO "gomicro_warmhome/GetUserInfo/proto/example"
+	POSTAVATAR "gomicro_warmhome/PostAvatar/proto/example"
 	POSTLOGIN "gomicro_warmhome/PostLogin/proto/example"
 	POSTREG "gomicro_warmhome/PostReg/proto/example"
+	POSTUSERAUTH "gomicro_warmhome/PostUserAuth/proto/example"
+	PUTUSERINFO "gomicro_warmhome/PutUserInfo/proto/example"
 )
 
 func ExampleCall(w http.ResponseWriter, r *http.Request) {
@@ -484,6 +487,215 @@ func GetUserInfo(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		return
 	}
 	return
+}
+
+func PostAvatar(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	beego.Info("上传头像请求  /api/v1.0/avatar")
+
+	//创建服务并初始化
+	server := grpc.NewService()
+	server.Init()
+
+	//读取cookie
+	userlogin, err := r.Cookie("userlogin")
+	//如果读取失败或者cookie中的value不存在就返回错误
+	if err != nil || "" == userlogin.Value {
+		resp := map[string]interface{}{
+			"errno":  utils.RECODE_SESSIONERR,
+			"errmsg": utils.RecodeText(utils.RECODE_SESSIONERR),
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			http.Error(w, err.Error(), 503)
+			return
+		}
+		return
+	}
+	file, hander, err := r.FormFile("avatar")
+	if err != nil {
+		beego.Info("接收图片文件出错")
+		resp := map[string]interface{}{
+			"errno":  utils.RECODE_IOERR,
+			"errmsg": utils.RecodeText(utils.RECODE_IOERR),
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			http.Error(w, err.Error(), 503)
+			return
+		}
+		return
+	}
+
+	beego.Info("文件大小", hander.Size)
+	beego.Info("文件名", hander.Filename)
+
+	filebuffer := make([]byte, hander.Size)
+	_, err = file.Read(filebuffer)
+	if err != nil {
+		beego.Info("接收图片文件出错")
+		resp := map[string]interface{}{
+			"errno":  utils.RECODE_IOERR,
+			"errmsg": utils.RecodeText(utils.RECODE_IOERR),
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			http.Error(w, err.Error(), 503)
+			return
+		}
+		return
+	}
+
+	// call the backend service
+	exampleClient := POSTAVATAR.NewExampleService("go.micro.srv.PostAvatar", server.Client())
+	rsp, err := exampleClient.PostAvatar(context.TODO(), &POSTAVATAR.Request{
+		Avatar:    filebuffer,
+		SessionId: userlogin.Value,
+		Filename:  hander.Filename,
+		Filesize:  hander.Size,
+	})
+
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	//准备回传数据
+	data := make(map[string]interface{})
+	data["avatar_url"] = utils.AddDomain2Url(rsp.AvatarUrl)
+	// we want to augment the response
+	response := map[string]interface{}{
+		"errno":  rsp.Errno,
+		"errmsg": rsp.Errmsg,
+		"data":   data,
+	}
+	w.Header().Set("Content-type", "application/json")
+
+	// encode and write the response as json
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+}
+
+func PutUserInfo(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	beego.Info("修改用户名 url：api/v1.0/user/name")
+
+	//接收前端发送来的内容
+	var request map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	//初始化服务
+	server := grpc.NewService()
+	server.Init()
+
+	// call the backend service
+	exampleClient := PUTUSERINFO.NewExampleService("go.micro.srv.PutUserInfo", server.Client())
+
+	userlogin, err := r.Cookie("userlogin")
+	if err != nil {
+		resp := map[string]interface{}{
+			"errno":  utils.RECODE_SESSIONERR,
+			"errmsg": utils.RecodeText(utils.RECODE_SESSIONERR),
+		}
+		w.Header().Set("Content-Type", "application/json")
+		// encode and write the response as json
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			http.Error(w, err.Error(), 503)
+			beego.Info(err)
+			return
+		}
+		return
+	}
+	//成功就将信息发送给前端
+	rsp, err := exampleClient.PutUserInfo(context.TODO(), &PUTUSERINFO.Request{
+		SessionId: userlogin.Value,
+		Username:  request["name"].(string),
+	})
+
+	if err != nil {
+		http.Error(w, err.Error(), 502)
+		return
+	}
+	//准备数据
+	data := make(map[string]interface{})
+	//将信息发送给前端
+	data["name"] = rsp.Username
+	resp := map[string]interface{}{
+		"errno":  rsp.Errno,
+		"errmsg": rsp.Errmsg,
+		"data":   data,
+	}
+	//设置格式
+	w.Header().Set("Content-Type", "application/json")
+	// encode and write the response as json
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		http.Error(w, err.Error(), 503)
+		beego.Info(err)
+		return
+	}
+	return
+}
+
+func PostUserAuth(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	beego.Info(" 实名认证 Postuserauth  api/v1.0/user/auth ")
+
+	//创建服务并初始化
+	server := grpc.NewService()
+	server.Init()
+
+	//获取前端发送的数据
+	var request map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	// call the backend service
+	exampleClient := POSTUSERAUTH.NewExampleService("go.micro.srv.PostUserAuth", server.Client())
+
+	//获取cookie
+	userlogin, err := r.Cookie("userlogin")
+	if err != nil {
+		resp := map[string]interface{}{
+			"errno":  utils.RECODE_SESSIONERR,
+			"errmsg": utils.RecodeText(utils.RECODE_SESSIONERR),
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		// encode and write the response as json
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			http.Error(w, err.Error(), 503)
+			beego.Info(err)
+			return
+		}
+		return
+	}
+
+	rsp, err := exampleClient.PostUserAuth(context.TODO(), &POSTUSERAUTH.Request{
+		SessionId: userlogin.Value,
+		RealName:  request["real_name"].(string),
+		IdCard:    request["id_card"].(string),
+	})
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	// we want to augment the response
+	response := map[string]interface{}{
+		"errno":  rsp.Errno,
+		"errmsg": rsp.Errmsg,
+	}
+
+	// encode and write the response as json
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, err.Error(), 501)
+		return
+	}
 }
 
 func GetIndex(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
