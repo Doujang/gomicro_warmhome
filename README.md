@@ -34,3 +34,4 @@
 
 - **[租房项目--完成获取Session、登录、登出、获取用户信息服务](http://www.sher.vip/article/20)**
 
+- **[租房项目--完成头像、修改用户名、实名认证服务](http://www.sher.vip/article/21)**
